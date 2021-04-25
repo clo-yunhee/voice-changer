@@ -175,14 +175,14 @@ vc::model::AudioTrack vc::model::AudioTrack::clone() const
     vc::model::AudioTrack copy;
     copy.mSampleRate = mSampleRate;
     copy.mAudio = mAudio;
-    return std::move(copy);
+    return copy;
 }
 
 vc::model::AudioTrack vc::model::AudioTrack::resampled(int targetSampleRate) const
 {
     auto copy = this->clone();
     copy.resample(targetSampleRate);
-    return std::move(copy);
+    return copy;
 }
 
 Track *vc::model::AudioTrack::toPitchTrack() const
@@ -191,6 +191,13 @@ Track *vc::model::AudioTrack::toPitchTrack() const
     Track *f0 = nullptr;
     REAPER::Analyze(trackAt16kHz.mAudio, trackAt16kHz.mSampleRate, &f0);
     return f0;
+}
+
+vc::model::LpcTrack vc::model::AudioTrack::toLpcTrack(Track *pitchTrack, const double preemphFrequency) const
+{
+    vc::model::LpcTrack lpcTrack(pitchTrack, preemphFrequency, mSampleRate);
+    lpcTrack.fillFromAudio(mAudio);
+    return lpcTrack;
 }
 
 int vc::model::AudioTrack::sampleRate() const

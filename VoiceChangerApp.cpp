@@ -3,6 +3,10 @@
 #include <wx/fs_inet.h>
 #include <wx/sstream.h>
 #include <wx/txtstrm.h>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include "Noise.h"
 
 wxIMPLEMENT_APP(vc::gui::App);
 
@@ -50,11 +54,11 @@ vc::gui::Frame::Frame(App *app)
     wxBoxSizer *topSizer = new wxBoxSizer(wxVERTICAL);
     SetSizer(topSizer);
 
-    mTrackDetails = new wxTextCtrl(this, ID_TrackDetails, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY | wxTE_MULTILINE | wxTE_CENTRE);
+    mTrackDetails = new wxRichTextCtrl(this, ID_TrackDetails, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxRE_READONLY | wxRE_MULTILINE | wxTE_CENTRE);
     mTrackDetails->SetBackgroundColour(*wxLIGHT_GREY);
     topSizer->Add(mTrackDetails, wxSizerFlags(1).Expand().Border(wxALL, 10));
 
-    mLogs = new wxTextCtrl(this, ID_Logs, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY | wxTE_MULTILINE);
+    mLogs = new wxRichTextCtrl(this, ID_Logs, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxRE_READONLY | wxRE_MULTILINE);
     mLogs->SetBackgroundColour(*wxLIGHT_GREY);
     topSizer->Add(mLogs, wxSizerFlags(2).Expand().Border(wxALL, 15));
 
@@ -108,23 +112,41 @@ void vc::gui::Frame::OnSave(wxCommandEvent& event)
 
 void vc::gui::Frame::OnResynth(wxCommandEvent& event)
 {
-    // Extract pitch information.
+    Log("Task started.", true);
+
+    const double lpcPreemphFrequency = 100.0;
+    const double postHpFrequency = 350.0;
+
+    const double relativeNoiseGain = 0.2;
+
+    // Extract pitch and formant information.
+    Log("Pitch analysis.");
     auto pitchTrack = mApp->controller()->audioTrack()->toPitchTrack();
+
+    Log("LPC analysis.");
+    auto lpcTrack = mApp->controller()->audioTrack()->toLpcTrack(pitchTrack, lpcPreemphFrequency);
 
     const int sampleRate = mApp->controller()->audioTrack()->sampleRate();
     const double duration = mApp->controller()->audioTrack()->duration();
     const int frameCount = std::round(duration * sampleRate);
 
     const int voicingWindowLength = std::round(200.0 / 1000.0 * sampleRate);
-    const int voicingWindowSpacing = std::round(30.0 / 1000.0 * sampleRate);
+    const int voicingWindowSpacing = std::round(60.0 / 1000.0 * sampleRate);
 
     mApp->controller()->glottalSource()->setSampleRate(sampleRate);
 
-    mApp->controller()->glottalSource()->setRd(2.6);
+    const double minRd = 0.4;
+    const double minRdPitch = 70;
+
+    const double maxRd = 2.1;
+    const double maxRdPitch = 250;
+
+    mApp->controller()->glottalSource()->setRd(0.8);
 
     std::vector<double> audio(frameCount);
 
     // Generate glottal source.
+    Log("Generating glottal source.");
     for (int i = 0; i < frameCount; ++i) {
         double time = double(i) / double(sampleRate);
 
@@ -133,14 +155,44 @@ void vc::gui::Frame::OnResynth(wxCommandEvent& event)
 
         if (voicing) {
             double pitch = pitchTrack->a(pitchTrackIndex);
-            mApp->controller()->glottalSource()->setPitch(pitch, 0.005);
+            mApp->controller()->glottalSource()->setPitch(pitch, 0.1);
+
+            double Rd;
+            if (pitch < minRdPitch)
+                Rd = minRd;
+            else if (pitch > maxRdPitch)
+                Rd = maxRd;
+            else
+                Rd = minRd + (maxRd - minRd) * (pitch - minRdPitch) / (maxRdPitch - minRdPitch);
+            mApp->controller()->glottalSource()->setRd(Rd, 0.2);
         }
         mApp->controller()->glottalSource()->setVoicing(voicing);
 
         audio[i] = mApp->controller()->glottalSource()->generateFrame();
     }
 
+    // Add noise to the input.
+    Log("Adding noise.");
+    auto noise = vc::model::Noise::tilted(frameCount, -3.0);
+
+    double audioAmplitude = 0.0;
+    double noiseAmplitude = 0.0;
+    for (int i = 0; i < frameCount; ++i) {
+        if (std::abs(audio[i]) > audioAmplitude)
+            audioAmplitude = std::abs(audio[i]);
+        if (std::abs(noise[i]) > noiseAmplitude)
+            noiseAmplitude = std::abs(noise[i]);
+    }
+    for (int i = 0; i < frameCount; ++i) {
+        audio[i] += relativeNoiseGain * audioAmplitude * noise[i] / noiseAmplitude;
+    }
+
+    // Apply LPC filters track.
+    Log("LPC filtering.");
+    lpcTrack.applyToAudio(audio);
+
     // Apply voicing contour with Hann window.
+    Log("Post-processing.");
     std::vector<double> voicingWindow(voicingWindowLength);
     std::vector<double> voicingWindow2(voicingWindowLength);
     for (int j = 0; j < voicingWindowLength; ++j) {
@@ -179,31 +231,85 @@ void vc::gui::Frame::OnResynth(wxCommandEvent& event)
         audio[i] *= weights[i];
     }
 
+    // Add a first-order high-pass filter.
+    const double hpCoef = std::exp(-(2.0 * PI * postHpFrequency) / sampleRate);
+    for (int i = frameCount - 1; i >= 1; --i)
+        audio[i] -= hpCoef * audio[i - 1];
+
     // Normalize.
-    double amplitude = 0.0;
+    double normAmplitude = 0.0;
     for (int i = 0; i < frameCount; ++i) {
-        if (std::abs(audio[i]) > amplitude) {
-            amplitude = std::abs(audio[i]);
+        if (std::abs(audio[i]) > normAmplitude) {
+            normAmplitude = std::abs(audio[i]);
         }
     }
-    if (amplitude > 0.0) {
+    if (normAmplitude > 0.0) {
         for (int i = 0; i < frameCount; ++i) {
-            audio[i] /= amplitude;
+            audio[i] /= normAmplitude;
         }
     }
-
-    mLogs->AppendText("Resynthesized.\n");
-
+    
     mApp->controller()->audioTrack()->replace(audio, sampleRate);
+
+    Log("Task finished.", true);
+
+    mLogs->Newline();
+
+    delete pitchTrack;
 }
 
 void vc::gui::Frame::UpdateTrackDetails()
 {
-    wxStringOutputStream o;
-    wxTextOutputStream str(o);
-    
-    str << "Duration: " << mApp->controller()->audioTrack()->duration() << " s\n"
-        << "Sample rate: " << mApp->controller()->audioTrack()->sampleRate() << " Hz";
+    mTrackDetails->Clear();
 
-    mTrackDetails->SetValue(o.GetString());
+    mTrackDetails->BeginAlignment(wxTEXT_ALIGNMENT_CENTER);
+
+    mTrackDetails->BeginBold();
+    mTrackDetails->WriteText("Duration: ");
+    mTrackDetails->EndBold();
+    mTrackDetails->WriteText(std::to_string(mApp->controller()->audioTrack()->duration()));
+    mTrackDetails->WriteText(" s");
+    mTrackDetails->Newline();
+
+    mTrackDetails->BeginBold();
+    mTrackDetails->WriteText("Sample rate: ");
+    mTrackDetails->EndBold();
+    mTrackDetails->WriteText(std::to_string(mApp->controller()->audioTrack()->sampleRate()));
+    mTrackDetails->WriteText(" Hz");
+    mTrackDetails->Newline();
+
+    mTrackDetails->EndAlignment();
+}
+
+void vc::gui::Frame::Log(const std::string& text, bool bold)
+{
+    time_t now = time(nullptr);
+    struct tm *ltm = localtime(&now);
+
+    std::stringstream ss;
+    ss << "[";
+    ss << std::setfill('0') << std::setw(2) << ltm->tm_hour;
+    ss << ":";
+    ss << std::setfill('0') << std::setw(2) << ltm->tm_min;
+    ss << ":";
+    ss << std::setfill('0') << std::setw(2) << ltm->tm_sec;
+    ss << "] ";
+
+    mLogs->SetInsertionPoint(mLogs->GetLastPosition());
+    
+    mLogs->BeginItalic();
+    mLogs->WriteText(ss.str());
+    mLogs->EndItalic();
+
+    if (bold)
+        mLogs->BeginBold();
+    mLogs->WriteText(text);
+    if (bold)
+        mLogs->EndBold();
+
+    mLogs->Newline();
+
+    mLogs->ShowPosition(mLogs->GetLastPosition());
+
+    wxAppConsole::GetInstance()->Yield();
 }

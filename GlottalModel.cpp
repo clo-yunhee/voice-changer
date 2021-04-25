@@ -3,7 +3,8 @@
 vc::model::LFGenerator::LFGenerator(const double Rd, const int periodInSamples)
     : m_Rd(Rd),
       mPeriodInSamples(periodInSamples),
-      m_t(0)
+      m_t(0),
+      m_Tc(0.997)
 {
     calculateTimeParameters();
     calculateImplicitParameters();
@@ -24,7 +25,7 @@ void vc::model::LFGenerator::setPeriod(int periodInSamples)
 double vc::model::LFGenerator::generateFrame(double *time)
 {
     constexpr double Ee = 1;
-    constexpr double T0 = 1;
+    const double Tc = m_Tc;
     const double Tp = m_Tp;
     const double Te = m_Te;
     const double Ta = m_Ta;
@@ -43,8 +44,11 @@ double vc::model::LFGenerator::generateFrame(double *time)
     if (t <= Te) {
         return (-Ee * std::exp(a * (t - Te)) * std::sin(PI * t / Tp)) / std::sin(PI * Te / Tp);
     }
+    else if (t <= Tc) {
+        return -Ee / (e * Ta) * (std::exp(-e * (t - Te)) - std::exp(-e * (Tc - Te)));
+    }
     else {
-        return -Ee / (e * Ta) * (std::exp(-e * (t - Te)) - std::exp(-e * (T0 - Te)));
+        return 0.0;
     }
 }
 
@@ -67,7 +71,7 @@ void vc::model::LFGenerator::calculateTimeParameters()
 
 void vc::model::LFGenerator::calculateImplicitParameters()
 {
-    constexpr double T0 = 1;
+    const double Tc = m_Tc;
     const double Tp = m_Tp;
     const double Te = m_Te;
     const double Ta = m_Ta;
@@ -75,16 +79,16 @@ void vc::model::LFGenerator::calculateImplicitParameters()
 
     // e is expressed by an implicit equation
     const auto fb = [=](double e) {
-        return 1.0 - std::exp(-e * (T0 - Te)) - e * Ta;
+        return 1.0 - std::exp(-e * (Tc - Te)) - e * Ta;
     };
     const auto dfb = [=](double e) {
-        return (T0 - Te) * std::exp(-e * (T0 - Te)) - Ta;
+        return (Tc - Te) * std::exp(-e * (Tc - Te)) - Ta;
     };
     const double e = fzero(fb, dfb, 1.0 / (Ta + 1e-13));
 
     // a is expressed by another implicit equation
     // integral{0, T0} ULF(t) dt, where ULF(t) is the LF model equation
-    const double A = (1.0 - std::exp(-e * (T0 - Te))) / (e * e * Ta) - (T0 - Te) * std::exp(-e * (T0 - Te)) / (e * Ta);
+    const double A = (1.0 - std::exp(-e * (Tc - Te))) / (e * e * Ta) - (Tc - Te) * std::exp(-e * (Tc - Te)) / (e * Ta);
     const auto fa = [=](double a) {
         return (a * a + wg * wg) * std::sin(wg * Te) * A + wg * std::exp(-a * Te) + a * std::sin(wg * Te) - wg * std::cos(wg * Te);
     };

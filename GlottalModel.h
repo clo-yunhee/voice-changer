@@ -25,6 +25,7 @@ private:
     double m_t;
 
     // Calculated parameters.
+    double m_Tc;
     double m_Tp;
     double m_Te;
     double m_Ta;

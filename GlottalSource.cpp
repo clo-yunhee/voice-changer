@@ -1,4 +1,5 @@
 #include "GlottalSource.h"
+#include <wx/app.h>
 #include <cmath>
 
 vc::synth::GlottalSource::GlottalSource()
@@ -53,6 +54,8 @@ double vc::synth::GlottalSource::generateFrame()
     if (timeInPeriod >= 1) {
         mVoicingMultiplier = (mVoicingTarget ? 1.0 : 0.0);
     }
+
+    wxAppConsole::GetInstance()->Yield();
 
     return sample;
 }

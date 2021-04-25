@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include "reaper/reaper.h"
+#include "LpcTrack.h"
 
 namespace vc::model {
 
@@ -25,6 +26,7 @@ public:
     AudioTrack clone() const;
     AudioTrack resampled(int targetSampleRate) const;
     Track *toPitchTrack() const;
+    vc::model::LpcTrack toLpcTrack(Track *pitchTrack, double preemphFrequency) const;
 
     int sampleRate() const;
     double duration() const;

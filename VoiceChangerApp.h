@@ -7,6 +7,8 @@
     #include <wx/wx.h>
 #endif
 
+#include <wx/richtext/richtextctrl.h>
+
 #include "VoiceChangerController.h"
 
 namespace vc::gui {
@@ -36,10 +38,12 @@ private:
 
     void UpdateTrackDetails();
 
+    void Log(const std::string& text, bool bold = false);
+
     App *mApp;
 
-    wxTextCtrl *mTrackDetails;
-    wxTextCtrl *mLogs;
+    wxRichTextCtrl *mTrackDetails;
+    wxRichTextCtrl *mLogs;
     wxButton *mResynth;
 };
 

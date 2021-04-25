@@ -27,6 +27,12 @@ set(SOURCES
         "GlottalModel.h"
         "GlottalSource.cpp"
         "GlottalSource.h"
+        "Lpc.cpp"
+        "Lpc.h"
+        "LpcTrack.cpp"
+        "LpcTrack.h"
+        "Noise.cpp"
+        "Noise.h"
         "VoiceChangerApp.cpp"
         "VoiceChangerApp.h"
         "VoiceChangerController.cpp"
@@ -54,7 +60,7 @@ set(IMAGES
         "Patreon.png"
 )
 
-find_package(wxWidgets REQUIRED COMPONENTS html net core base)
+find_package(wxWidgets REQUIRED COMPONENTS richtext html net core base)
 include(${wxWidgets_USE_FILE})
 
 add_executable(VoiceChanger WIN32 ${SOURCES})

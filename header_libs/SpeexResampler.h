@@ -43,6 +43,7 @@
 #pragma once
 
 #include <cmath>
+#include <climits>
 
 namespace speexport {
   enum {
