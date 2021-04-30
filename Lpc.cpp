@@ -1,5 +1,10 @@
 #include "Lpc.h"
+#include "AberthRoots.h"
 #include <cmath>
+#include <complex>
+#include <random>
+#include <iostream>
+#include <wx/app.h>
 
 std::vector<double> vc::model::Lpc::sWindow;
 
@@ -119,4 +124,56 @@ done:
     }*/
 
     return lpc;
+}
+
+static std::vector<double> polyFromRoots(const std::vector<std::complex<double>>& R)
+{
+    std::vector<std::complex<double>> P(R.size() + 1, 0.0);
+
+    P[0] = 1.0;
+    for (int j = 0; j < R.size(); ++j) {
+        auto& zj = R[j];
+        for (int i = j; i >= 0; --i) {
+            P[i + 1] -= zj * P[i];
+        }
+    }
+
+    std::vector<double> Pr(P.size());
+    for (int i = 0; i < P.size(); ++i) {
+        Pr[i] = P[i].real();
+    }
+    return Pr;
+}
+
+std::vector<double> vc::model::Lpc::applyFrequencyShift(const std::vector<double>& lpca, double shiftFactor)
+{
+    //  The process is as follows:
+    // 1. Turn LPC into polynomial representation.
+    // 2. Solve the polynomial for complex roots.
+    // 3. Apply phase shift to each root.
+    // 4. Find the coefficients for the new polynomial with shifted roots.
+    
+    std::vector<double> P(lpca.size() + 1);
+    P[0] = 1.0;
+    for (int i = 0; i < lpca.size(); ++i) {
+        P[i + 1] = lpca[i];
+    }
+
+    std::vector<std::complex<double>> R = solveRoots(P);
+
+    std::vector<std::complex<double>> Rs;
+    for (const auto& z : R) {
+        const double mag = std::abs(z);
+        const double phi = std::arg(z);
+
+        if (std::abs(shiftFactor * phi) < PI) {
+            Rs.push_back(std::polar(mag, shiftFactor * phi));
+        }
+    }
+
+    std::vector<double> Ps = polyFromRoots(Rs);
+
+    std::vector<double> lpcaShifted(Ps.begin() + 1, Ps.end());
+
+    return lpcaShifted;
 }

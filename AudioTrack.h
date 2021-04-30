@@ -34,6 +34,8 @@ public:
 private:
     int mSampleRate;
     std::vector<double> mAudio;
+
+    friend class AudioTrackPlayer;
 };
 
 template<typename In, typename Out>

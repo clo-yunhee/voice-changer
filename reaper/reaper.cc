@@ -72,8 +72,8 @@ bool REAPER::Analyze(const std::vector<double>& audio, int sampleRate, Track **p
     bool do_hilbert_transform = kDoHilbertTransform;
     bool do_high_pass = kDoHighpass;
     float external_frame_interval = kExternalFrameInterval;
-    float max_f0 = kMaxF0Search;
-    float min_f0 = kMinF0Search;
+    float max_f0 = 700.0;
+    float min_f0 = 40.0;
     float inter_pulse = kUnvoicedPulseInterval;
     float unvoiced_cost = kUnvoicedCost;
 

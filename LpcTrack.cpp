@@ -66,7 +66,7 @@ void vc::model::LpcTrack::applyToAudio(std::vector<double>& audio) const
         std::vector<double> window(winLen);
         for (int j = 0; j < winLen; ++j) {
             window[j] = 0.5 - 0.5 * std::cos((2.0 * PI * j) / double(winLen - 1));
-            frame[rampLen + j] = audio[start + j];
+            frame[rampLen + j] = window[j] * audio[start + j];
         }
         for (int l = 0; l < rampLen; ++l) {
             frame[l] = frame[rampLen] * (2.0 * double(l) / double(rampLen) - 1.0);
@@ -104,6 +104,13 @@ void vc::model::LpcTrack::pushAudio(const std::vector<double>& audio)
     pushCoefficients(Lpc::analyze(audio, mPreemphFrequency, mSampleRate));
 }
 
+void vc::model::LpcTrack::applyFrequencyShift(const double shiftFactor)
+{
+    for (auto& lpca : mTrack) {
+        lpca = vc::model::Lpc::applyFrequencyShift(lpca, shiftFactor);
+    }
+}
+
 int vc::model::LpcTrack::windowLengthAtTime(int index) const
 {
     return windowLengthAtPitchTrackIndex(mPitchTrack->Index(float(index) / float(mSampleRate)));
@@ -112,7 +119,7 @@ int vc::model::LpcTrack::windowLengthAtTime(int index) const
 int vc::model::LpcTrack::windowSpacingAtTime(int index) const
 {
     // Constant spacing yields the best results.
-    return (int) std::round(1.0 / 1000.0 * mSampleRate);
+    return (int) std::round(0.67 / 1000.0 * mSampleRate);
     // return windowSpacingAtPitchTrackIndex(mPitchTrack->Index(float(index) / float(mSampleRate)));
 }
 

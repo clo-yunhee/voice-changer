@@ -16,6 +16,8 @@ public:
     void pushCoefficients(const std::vector<double>& lpca);
     void pushAudio(const std::vector<double>& audio);
 
+    void applyFrequencyShift(double shiftFactor);
+
 private:
     int windowLengthAtTime(int index) const;
     int windowSpacingAtTime(int index) const;

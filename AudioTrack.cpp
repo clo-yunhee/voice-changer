@@ -1,5 +1,6 @@
 #include "AudioTrack.h"
 #include "Exception.h"
+#include <algorithm>
 #include <memory>
 #include <fstream>
 

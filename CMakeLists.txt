@@ -4,7 +4,7 @@ project(VoiceChanger)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -18,11 +18,17 @@ if(WIN32)
 endif()
 
 set(SOURCES
+        "AberthRoots.cpp"
+        "AberthRoots.h"
         "AboutDialog.cpp"
         "AboutDialog.h"
         "AudioTrack.cpp"
         "AudioTrack.h"
+        "AudioTrackPlayer.cpp"
+        "AudioTrackPlayer.h"
         "Exception.h"
+        "FilterDesign.cpp"
+        "FilterDesign.h"
         "GlottalModel.cpp"
         "GlottalModel.h"
         "GlottalSource.cpp"
@@ -63,9 +69,11 @@ set(IMAGES
 find_package(wxWidgets REQUIRED COMPONENTS richtext html net core base)
 include(${wxWidgets_USE_FILE})
 
-add_executable(VoiceChanger WIN32 ${SOURCES})
-target_link_libraries(VoiceChanger PUBLIC ${wxWidgets_LIBRARIES})
+set(PA_BUILD_STATIC ON)
+add_subdirectory(portaudio EXCLUDE_FROM_ALL)
 
+add_executable(VoiceChanger WIN32 ${SOURCES})
+target_link_libraries(VoiceChanger PUBLIC ${wxWidgets_LIBRARIES} portaudio_static)
 target_include_directories(VoiceChanger SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/header_libs)
 
 include(png2c/Functions.cmake)
@@ -77,6 +85,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug"
 endif()
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    target_link_libraries(VoiceChanger PUBLIC avrt)
+
     install(TARGETS VoiceChanger RUNTIME DESTINATION .)
 
     set(DEPENDENCY_PATHS ${wxWidgets_LIB_DIR})

@@ -4,7 +4,7 @@ vc::model::LFGenerator::LFGenerator(const double Rd, const int periodInSamples)
     : m_Rd(Rd),
       mPeriodInSamples(periodInSamples),
       m_t(0),
-      m_Tc(0.997)
+      m_Tc(1.0)
 {
     calculateTimeParameters();
     calculateImplicitParameters();

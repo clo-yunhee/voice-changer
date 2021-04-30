@@ -3,7 +3,7 @@
 
 #include <vector>
 
-constexpr double PI = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
+#define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
 
 namespace vc::model {
 
@@ -14,6 +14,8 @@ public:
     static std::vector<double> applyFilter(const std::vector<double>& lpca, const std::vector<double>& data);
 
     static const std::vector<double>& window(int N);
+
+    static std::vector<double> applyFrequencyShift(const std::vector<double>& lpca, double shiftFactor);
 
 private:
     static void makeWindow(int N);
